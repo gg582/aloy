@@ -10,3 +10,9 @@ packages:
       resolved_version: 3.12.0
       commit_sha: 55f93686c01528224f448c19128836e7df245f72
       cmake_target: nlohmann_json
+    - name: testlib
+      git_url: C:/Users/snowm/Projects/snowmerak/aloy/testlib
+      resolved_version: 1.0.0
+      commit_sha: 4ea126ba5ec3ae5915d3a9c30f034c06084a60dd
+      cmake_target: testlib
+      is_aloy_package: true

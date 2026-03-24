@@ -18,3 +18,6 @@ targets:
               git: https://github.com/nlohmann/json
               version: '>=3.11.0'
               cmake_target: nlohmann_json
+            - name: testlib
+              git: C:/Users/snowm/Projects/snowmerak/aloy/testlib
+              version: ^1.0.0

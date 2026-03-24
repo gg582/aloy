@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_subdirectory(.my_modules/fmt)
 add_subdirectory(.my_modules/json)
+add_subdirectory(.my_modules/testlib)
 
 add_executable(example)
 target_sources(example PRIVATE
@@ -18,5 +19,6 @@ target_include_directories(example PUBLIC
 target_link_libraries(example PRIVATE
     fmt
     nlohmann_json
+    testlib
 )
 
