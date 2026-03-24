@@ -1,0 +1,25 @@
+package model
+
+// LockFile represents the aloy.lock structure for reproducible builds.
+type LockFile struct {
+	Version  int             `yaml:"version"`
+	Packages []LockedPackage `yaml:"packages,omitempty"`
+}
+
+// LockedPackage records a resolved dependency at a specific commit.
+type LockedPackage struct {
+	Name            string `yaml:"name"`
+	GitURL          string `yaml:"git_url"`
+	ResolvedVersion string `yaml:"resolved_version"`
+	CommitSHA       string `yaml:"commit_sha"`
+}
+
+// FindPackage returns the locked package by name, or nil if not found.
+func (lf *LockFile) FindPackage(name string) *LockedPackage {
+	for i := range lf.Packages {
+		if lf.Packages[i].Name == name {
+			return &lf.Packages[i]
+		}
+	}
+	return nil
+}
