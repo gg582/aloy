@@ -66,15 +66,15 @@ var addCmd = &cobra.Command{
 		// Determine target to add dep to
 		targetName := addTarget
 		if targetName == "" {
-			// Use the first target
+			if len(cfg.Targets) == 0 {
+				return fmt.Errorf("no targets defined in project.yaml; add a target first")
+			}
+			if len(cfg.Targets) > 1 {
+				return fmt.Errorf("multiple targets exist; specify one with --target (-t)")
+			}
 			for k := range cfg.Targets {
 				targetName = k
-				break
 			}
-		}
-
-		if targetName == "" {
-			return fmt.Errorf("no targets defined in project.yaml; add a target first")
 		}
 
 		target, ok := cfg.Targets[targetName]
