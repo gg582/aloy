@@ -193,14 +193,6 @@ func writeTargetBlock(b *strings.Builder, cmakeName string, target *model.Target
 
 	// Link dependencies
 	if len(target.Dependencies) > 0 {
-		// Build lookup for CMake target names
-		depTargetMap := make(map[string]string)
-		for i := range resolvedDeps {
-			if resolvedDeps[i].CMakeTarget != "" {
-				depTargetMap[resolvedDeps[i].ModuleDir] = resolvedDeps[i].CMakeTarget
-			}
-		}
-
 		keyword := "PRIVATE"
 		if target.Type == "header_only" {
 			keyword = "INTERFACE"
@@ -211,11 +203,7 @@ func writeTargetBlock(b *strings.Builder, cmakeName string, target *model.Target
 			if dep.Type == "system" {
 				linkName = dep.Name
 			} else if dep.CMakeTarget != "" {
-				// User-specified override
 				linkName = dep.CMakeTarget
-			} else if resolved, ok := depTargetMap[dep.ModuleDir()]; ok {
-				// Auto-detected from CMakeLists.txt
-				linkName = resolved
 			} else {
 				linkName = dep.TargetName()
 			}
