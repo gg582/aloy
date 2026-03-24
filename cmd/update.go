@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/snowmerak/aloy/internal/git"
+	"github.com/snowmerak/aloy/internal/model"
 	"github.com/snowmerak/aloy/internal/parser"
 	"github.com/snowmerak/aloy/internal/resolver"
 	"github.com/spf13/cobra"
@@ -28,68 +29,92 @@ var updateCmd = &cobra.Command{
 			return fmt.Errorf("failed to load project.yaml: %w", err)
 		}
 
-		modulesBase := filepath.Join(dir, resolver.ModulesDir)
-		var updated int
+		lf, err := parser.LoadLockFile(dir)
+		if err != nil {
+			return fmt.Errorf("failed to load aloy.lock: %w", err)
+		}
 
+		modulesBase := filepath.Join(dir, resolver.ModulesDir)
+
+		// Deduplicate direct dependencies across all targets
+		type depEntry struct {
+			dep     model.Dependency
+			dirName string
+		}
+		seen := make(map[string]bool)
+		var deps []depEntry
 		for _, target := range cfg.Targets {
 			for _, dep := range target.Dependencies {
-				if dep.Type == "system" || dep.Git == "" {
+				key := dep.ModuleDir()
+				if seen[key] || dep.Type == "system" || dep.Git == "" {
 					continue
 				}
-
-				dirName := dep.ModuleDir()
-				destPath := filepath.Join(modulesBase, dirName)
-				if _, err := os.Stat(destPath); os.IsNotExist(err) {
-					fmt.Printf("  %s: not cloned, skipping (run sync first)\n", dep.Name)
-					continue
-				}
-
-				if err := git.FetchTags(destPath); err != nil {
-					fmt.Printf("  %s: failed to fetch tags: %v\n", dep.Name, err)
-					continue
-				}
-
-				constraint := dep.Version
-				tag, ver, err := git.FindBestTag(destPath, constraint)
-				if err != nil {
-					fmt.Printf("  %s: no matching tag: %v\n", dep.Name, err)
-					continue
-				}
-
-				currentSHA, _ := git.GetHeadSHA(destPath)
-				tagSHA, _ := git.GetTagSHA(destPath, tag)
-
-				if currentSHA == tagSHA {
-					fmt.Printf("  %s: already at %s\n", dep.Name, ver)
-					continue
-				}
-
-				if updateDryRun {
-					fmt.Printf("  %s: would update to %s (%s)\n", dep.Name, ver, tag)
-				} else {
-					if err := git.Checkout(destPath, tag); err != nil {
-						fmt.Printf("  %s: failed to checkout %s: %v\n", dep.Name, tag, err)
-						continue
-					}
-					fmt.Printf("  %s: updated to %s (%s)\n", dep.Name, ver, tag)
-				}
-				updated++
+				seen[key] = true
+				deps = append(deps, depEntry{dep: dep, dirName: key})
 			}
 		}
 
-		if !updateDryRun && updated > 0 {
-			// Re-run resolution to update lock file
-			resolvedDeps, err := resolver.ResolveGraph(dir, cfg)
-			if err != nil {
-				return err
+		var updated int
+		for _, e := range deps {
+			destPath := filepath.Join(modulesBase, e.dirName)
+			if _, err := os.Stat(destPath); os.IsNotExist(err) {
+				fmt.Printf("  %s: not cloned, skipping (run sync first)\n", e.dep.Name)
+				continue
 			}
-			lf := resolver.BuildLockFile(resolvedDeps)
+
+			if err := git.FetchTags(destPath); err != nil {
+				fmt.Printf("  %s: failed to fetch tags: %v\n", e.dep.Name, err)
+				continue
+			}
+
+			tag, ver, err := git.FindBestTag(destPath, e.dep.Version)
+			if err != nil {
+				fmt.Printf("  %s: no matching tag: %v\n", e.dep.Name, err)
+				continue
+			}
+
+			currentSHA, _ := git.GetHeadSHA(destPath)
+			tagSHA, _ := git.GetTagSHA(destPath, tag)
+
+			if currentSHA == tagSHA {
+				fmt.Printf("  %s: already at %s\n", e.dep.Name, ver)
+				continue
+			}
+
+			if updateDryRun {
+				fmt.Printf("  %s: would update to %s (%s)\n", e.dep.Name, ver, tag)
+				updated++
+				continue
+			}
+
+			if err := git.Checkout(destPath, tag); err != nil {
+				fmt.Printf("  %s: failed to checkout %s: %v\n", e.dep.Name, tag, err)
+				continue
+			}
+
+			newSHA, _ := git.GetHeadSHA(destPath)
+
+			// Update lockfile entry in-place
+			pkg := lf.FindPackage(e.dep.Name)
+			if pkg == nil {
+				pkg = lf.FindPackage(e.dirName)
+			}
+			if pkg != nil {
+				pkg.ResolvedVersion = ver.String()
+				pkg.CommitSHA = newSHA
+			}
+
+			fmt.Printf("  %s: updated to %s (%s)\n", e.dep.Name, ver, tag)
+			updated++
+		}
+
+		if updateDryRun {
+			fmt.Printf("Dry run: %d packages would be updated.\n", updated)
+		} else if updated > 0 {
 			if err := parser.SaveLockFile(dir, lf); err != nil {
 				return err
 			}
-			fmt.Printf("Updated lock file with %d changes.\n", updated)
-		} else if updateDryRun {
-			fmt.Printf("Dry run: %d packages would be updated.\n", updated)
+			fmt.Printf("Updated %d packages.\n", updated)
 		} else {
 			fmt.Println("All dependencies are up to date.")
 		}
