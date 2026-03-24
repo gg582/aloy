@@ -232,7 +232,7 @@ The name used in `target_link_libraries` is determined by this priority:
 
 ## Known Limitations
 
-- **No cycle detection** — Circular dependencies in the graph may cause an infinite loop
+- **No explicit cycle detection** — Circular dependencies do not cause infinite loops (the `resolved` map prevents re-processing), but they are silently accepted without warning
 - **No SemVer intersection** — When the same package is required with different version ranges, the first resolved version is used (no intersection computation)
 - **Transitive `cmake_target` not propagated** — See the "Transitive Dependencies and `cmake_target`" section above
 
