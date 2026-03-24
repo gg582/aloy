@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/snowmerak/aloy/internal/git"
 	"github.com/snowmerak/aloy/internal/model"
@@ -168,11 +169,14 @@ func ResolveGraph(projectRoot string, cfg *model.ProjectConfig) ([]ResolvedDep, 
 		}
 	}
 
-	// Convert map to slice
+	// Convert map to slice, sorted by name for deterministic output
 	var result []ResolvedDep
 	for _, rd := range resolved {
 		result = append(result, *rd)
 	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Name < result[j].Name
+	})
 	return result, nil
 }
 
