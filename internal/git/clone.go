@@ -7,21 +7,6 @@ import (
 	"strings"
 )
 
-// Clone performs a git clone of the given URL into dest.
-// If dest already exists, it does nothing.
-func Clone(url, dest string) error {
-	if _, err := os.Stat(dest); err == nil {
-		return nil // already cloned
-	}
-	cmd := exec.Command("git", "clone", "--depth", "1", "--recurse-submodules", url, dest)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git clone %s: %w", url, err)
-	}
-	return nil
-}
-
 // CloneFull performs a full (non-shallow) clone to allow tag enumeration.
 func CloneFull(url, dest string) error {
 	if _, err := os.Stat(dest); err == nil {
@@ -81,15 +66,4 @@ func DefaultBranch(repoPath string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("no default branch (main/master) found in %s", repoPath)
-}
-
-// Unshallow converts a shallow clone to a full clone (needed for tag listing).
-func Unshallow(repoPath string) error {
-	cmd := exec.Command("git", "fetch", "--unshallow")
-	cmd.Dir = repoPath
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	// --unshallow fails on non-shallow repos; ignore that error
-	_ = cmd.Run()
-	return nil
 }

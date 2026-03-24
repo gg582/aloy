@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -58,9 +59,9 @@ func init() {
 
 // needsSync checks whether sync needs to be run before building.
 func needsSync(dir string) bool {
-	buildDir := dir + "/build"
-	cmakeLists := dir + "/CMakeLists.txt"
-	projectYaml := dir + "/project.yaml"
+	buildDir := filepath.Join(dir, "build")
+	cmakeLists := filepath.Join(dir, "CMakeLists.txt")
+	projectYaml := filepath.Join(dir, "project.yaml")
 
 	// No build dir or no CMakeLists.txt → need sync
 	if _, err := os.Stat(buildDir); os.IsNotExist(err) {

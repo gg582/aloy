@@ -29,6 +29,8 @@ var removeCmd = &cobra.Command{
 
 		name := args[0]
 		found := false
+		var removedDirs []string  // module directories to delete
+		var removedNames []string // original names for lockfile cleanup
 
 		for targetName, target := range cfg.Targets {
 			// Filter out the dependency
@@ -36,6 +38,8 @@ var removeCmd = &cobra.Command{
 			for _, dep := range target.Dependencies {
 				if dep.Name == name || dep.Alias == name {
 					found = true
+					removedDirs = append(removedDirs, dep.ModuleDir())
+					removedNames = append(removedNames, dep.Name)
 					continue
 				}
 				newDepList = append(newDepList, dep)
@@ -56,23 +60,32 @@ var removeCmd = &cobra.Command{
 			return err
 		}
 
-		// Remove module directory
-		modulePath := filepath.Join(dir, resolver.ModulesDir, name)
-		if _, err := os.Stat(modulePath); err == nil {
-			if err := os.RemoveAll(modulePath); err != nil {
-				return fmt.Errorf("failed to remove %s: %w", modulePath, err)
+		// Remove module directories
+		for _, dirName := range removedDirs {
+			modulePath := filepath.Join(dir, resolver.ModulesDir, dirName)
+			if _, err := os.Stat(modulePath); err == nil {
+				if err := os.RemoveAll(modulePath); err != nil {
+					return fmt.Errorf("failed to remove %s: %w", modulePath, err)
+				}
+				fmt.Printf("Removed %s/%s/\n", resolver.ModulesDir, dirName)
 			}
-			fmt.Printf("Removed %s/%s/\n", resolver.ModulesDir, name)
 		}
 
-		// Remove from lock file
+		// Remove from lock file (match by original name or module dir)
+		nameSet := make(map[string]bool)
+		for _, n := range removedNames {
+			nameSet[n] = true
+		}
+		for _, d := range removedDirs {
+			nameSet[d] = true
+		}
 		lf, err := parser.LoadLockFile(dir)
 		if err != nil {
 			return fmt.Errorf("failed to load aloy.lock: %w", err)
 		}
 		var remaining []model.LockedPackage
 		for _, pkg := range lf.Packages {
-			if pkg.Name != name {
+			if !nameSet[pkg.Name] {
 				remaining = append(remaining, pkg)
 			}
 		}
