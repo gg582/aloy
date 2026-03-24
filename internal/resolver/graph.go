@@ -1,15 +1,36 @@
 package resolver
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 
 	"github.com/snowmerak/aloy/internal/git"
 	"github.com/snowmerak/aloy/internal/model"
 	"github.com/snowmerak/aloy/internal/parser"
 )
+
+var cmakeProjectNameRe = regexp.MustCompile(`(?i)^\s*project\s*\(\s*(\S+)`)
+
+// extractCMakeProjectName reads a CMakeLists.txt and returns the project() name.
+func extractCMakeProjectName(cmakeListsPath string) string {
+	f, err := os.Open(cmakeListsPath)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	s := bufio.NewScanner(f)
+	for s.Scan() {
+		if m := cmakeProjectNameRe.FindStringSubmatch(s.Text()); len(m) > 1 {
+			return m[1]
+		}
+	}
+	return ""
+}
 
 const ModulesDir = ".my_modules"
 
@@ -20,6 +41,7 @@ type ResolvedDep struct {
 	ResolvedVersion string
 	CommitSHA       string
 	ModuleDir       string // path relative to project root
+	CMakeTarget     string // detected or overridden CMake project name
 	IsAloyPackage   bool   // has project.yaml
 	IsSystem        bool   // type: system
 }
@@ -144,12 +166,24 @@ func ResolveGraph(projectRoot string, cfg *model.ProjectConfig) ([]ResolvedDep, 
 			isAloy = true
 		}
 
+		// Detect CMake project name
+		cmakeTarget := dep.Name
+		if dep.CMakeTarget != "" {
+			cmakeTarget = dep.CMakeTarget
+		} else {
+			cmakeListsPath := filepath.Join(destPath, "CMakeLists.txt")
+			if detected := extractCMakeProjectName(cmakeListsPath); detected != "" {
+				cmakeTarget = detected
+			}
+		}
+
 		rd := &ResolvedDep{
 			Name:            dep.Name,
 			GitURL:          dep.Git,
 			ResolvedVersion: resolvedVersion,
 			CommitSHA:       commitSHA,
 			ModuleDir:       dirName,
+			CMakeTarget:     cmakeTarget,
 			IsAloyPackage:   isAloy,
 			IsSystem:        false,
 		}
@@ -189,6 +223,7 @@ func BuildLockFile(deps []ResolvedDep) *model.LockFile {
 			GitURL:          d.GitURL,
 			ResolvedVersion: d.ResolvedVersion,
 			CommitSHA:       d.CommitSHA,
+			CMakeTarget:     d.CMakeTarget,
 			IsAloyPackage:   d.IsAloyPackage,
 			IsSystem:        d.IsSystem,
 		})

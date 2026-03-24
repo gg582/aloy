@@ -147,7 +147,7 @@ func writeTargets(b *strings.Builder, cfg *model.ProjectConfig, projectRoot stri
 	return nil
 }
 
-func writeTargetBlock(b *strings.Builder, cmakeName string, target *model.Target, sources []string, _ []resolver.ResolvedDep, projectRoot string) error {
+func writeTargetBlock(b *strings.Builder, cmakeName string, target *model.Target, sources []string, resolvedDeps []resolver.ResolvedDep, projectRoot string) error {
 	// Add target
 	switch target.Type {
 	case "executable":
@@ -193,16 +193,31 @@ func writeTargetBlock(b *strings.Builder, cmakeName string, target *model.Target
 
 	// Link dependencies
 	if len(target.Dependencies) > 0 {
+		// Build lookup for CMake target names
+		depTargetMap := make(map[string]string)
+		for i := range resolvedDeps {
+			if resolvedDeps[i].CMakeTarget != "" {
+				depTargetMap[resolvedDeps[i].ModuleDir] = resolvedDeps[i].CMakeTarget
+			}
+		}
+
 		keyword := "PRIVATE"
 		if target.Type == "header_only" {
 			keyword = "INTERFACE"
 		}
 		b.WriteString(fmt.Sprintf("target_link_libraries(%s %s\n", cmakeName, keyword))
 		for _, dep := range target.Dependencies {
-			linkName := dep.TargetName()
+			var linkName string
 			if dep.Type == "system" {
-				// System packages use their CMake target name directly
 				linkName = dep.Name
+			} else if dep.CMakeTarget != "" {
+				// User-specified override
+				linkName = dep.CMakeTarget
+			} else if resolved, ok := depTargetMap[dep.ModuleDir()]; ok {
+				// Auto-detected from CMakeLists.txt
+				linkName = resolved
+			} else {
+				linkName = dep.TargetName()
 			}
 			b.WriteString(fmt.Sprintf("    %s\n", linkName))
 		}
