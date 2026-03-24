@@ -17,7 +17,7 @@ func GenerateMaster(projectRoot string, cfg *model.ProjectConfig, resolvedDeps [
 
 	writeHeader(&b, cfg)
 	writeDependencies(&b, cfg, resolvedDeps)
-	if err := writeTargets(&b, cfg, projectRoot, resolvedDeps); err != nil {
+	if err := writeTargets(&b, cfg, projectRoot); err != nil {
 		return err
 	}
 	writeInjectCMake(&b, cfg)
@@ -51,7 +51,7 @@ func GenerateForModule(modulePath string) error {
 		if err != nil {
 			return fmt.Errorf("failed to scan sources for target %s: %w", targetName, err)
 		}
-		if err := writeTargetBlock(&b, cmakeName, &target, sources, nil, modulePath); err != nil {
+		if err := writeTargetBlock(&b, cmakeName, &target, sources, modulePath); err != nil {
 			return fmt.Errorf("failed to write target %s: %w", targetName, err)
 		}
 	}
@@ -128,7 +128,7 @@ func writeDependencies(b *strings.Builder, cfg *model.ProjectConfig, resolvedDep
 	}
 }
 
-func writeTargets(b *strings.Builder, cfg *model.ProjectConfig, projectRoot string, resolvedDeps []resolver.ResolvedDep) error {
+func writeTargets(b *strings.Builder, cfg *model.ProjectConfig, projectRoot string) error {
 	for targetName, target := range cfg.Targets {
 		cmakeName := sanitizeCMakeName(targetName)
 
@@ -138,7 +138,7 @@ func writeTargets(b *strings.Builder, cfg *model.ProjectConfig, projectRoot stri
 			return fmt.Errorf("failed to scan sources for target %s: %w", targetName, err)
 		}
 
-		if err := writeTargetBlock(b, cmakeName, &target, sources, resolvedDeps, projectRoot); err != nil {
+		if err := writeTargetBlock(b, cmakeName, &target, sources, projectRoot); err != nil {
 			return fmt.Errorf("failed to write target %s: %w", targetName, err)
 		}
 		b.WriteString("\n")
@@ -146,7 +146,7 @@ func writeTargets(b *strings.Builder, cfg *model.ProjectConfig, projectRoot stri
 	return nil
 }
 
-func writeTargetBlock(b *strings.Builder, cmakeName string, target *model.Target, sources []string, resolvedDeps []resolver.ResolvedDep, projectRoot string) error {
+func writeTargetBlock(b *strings.Builder, cmakeName string, target *model.Target, sources []string, projectRoot string) error {
 	// Add target
 	switch target.Type {
 	case "executable":
