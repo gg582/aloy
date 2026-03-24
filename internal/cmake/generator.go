@@ -260,9 +260,21 @@ func platformCondition(name string) string {
 }
 
 func sanitizeCMakeName(name string) string {
-	return strings.NewReplacer(
-		"-", "_",
-		" ", "_",
-		".", "_",
-	).Replace(name)
+	var b strings.Builder
+	for _, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('_')
+		}
+	}
+	s := b.String()
+	if s == "" {
+		return "unnamed"
+	}
+	// CMake names cannot start with a digit
+	if s[0] >= '0' && s[0] <= '9' {
+		s = "_" + s
+	}
+	return s
 }

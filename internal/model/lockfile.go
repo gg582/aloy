@@ -12,6 +12,8 @@ type LockedPackage struct {
 	GitURL          string `yaml:"git_url"`
 	ResolvedVersion string `yaml:"resolved_version"`
 	CommitSHA       string `yaml:"commit_sha"`
+	IsAloyPackage   bool   `yaml:"is_aloy_package,omitempty"`
+	IsSystem        bool   `yaml:"is_system,omitempty"`
 }
 
 // FindPackage returns the locked package by name, or nil if not found.

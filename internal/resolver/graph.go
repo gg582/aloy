@@ -184,14 +184,13 @@ func ResolveGraph(projectRoot string, cfg *model.ProjectConfig) ([]ResolvedDep, 
 func BuildLockFile(deps []ResolvedDep) *model.LockFile {
 	lf := &model.LockFile{Version: 1}
 	for _, d := range deps {
-		if d.IsSystem {
-			continue
-		}
 		lf.Packages = append(lf.Packages, model.LockedPackage{
 			Name:            d.Name,
 			GitURL:          d.GitURL,
 			ResolvedVersion: d.ResolvedVersion,
 			CommitSHA:       d.CommitSHA,
+			IsAloyPackage:   d.IsAloyPackage,
+			IsSystem:        d.IsSystem,
 		})
 	}
 	return lf

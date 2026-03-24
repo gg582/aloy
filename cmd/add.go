@@ -82,10 +82,18 @@ var addCmd = &cobra.Command{
 			return fmt.Errorf("target %q not found in project.yaml", targetName)
 		}
 
-		// Check for duplicates
-		for _, existing := range target.Dependencies {
-			if existing.Name == dep.Name || (dep.Alias != "" && existing.Alias == dep.Alias) {
-				return fmt.Errorf("dependency %q already exists in target %q", dep.Name, targetName)
+		// Check for duplicates across ALL targets (name and alias collision)
+		for tName, t := range cfg.Targets {
+			for _, existing := range t.Dependencies {
+				effective := dep.TargetName()
+				existingEffective := existing.TargetName()
+				if existing.Name == dep.Name {
+					return fmt.Errorf("dependency %q already exists in target %q", dep.Name, tName)
+				}
+				if effective == existingEffective {
+					return fmt.Errorf("name collision: %q (effective name %q) conflicts with existing %q in target %q",
+						dep.Name, effective, existing.Name, tName)
+				}
 			}
 		}
 

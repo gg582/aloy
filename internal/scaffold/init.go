@@ -77,8 +77,11 @@ func appendGitignore(dir string) {
 
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not update .gitignore: %v\n", err)
 		return
 	}
 	defer f.Close()
-	f.WriteString(entries)
+	if _, err := f.WriteString(entries); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not write to .gitignore: %v\n", err)
+	}
 }

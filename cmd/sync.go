@@ -36,6 +36,11 @@ func runSync(dir string) error {
 		return fmt.Errorf("failed to load project.yaml: %w", err)
 	}
 
+	// 1.5 Validate
+	if err := parser.ValidateProject(cfg); err != nil {
+		return fmt.Errorf("invalid project.yaml: %w", err)
+	}
+
 	// 2. Resolve dependency graph
 	fmt.Println("Resolving dependencies...")
 	resolvedDeps, err := resolver.ResolveGraph(dir, cfg)

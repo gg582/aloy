@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/Masterminds/semver/v3"
 )
@@ -70,22 +71,40 @@ func MergeConstraints(constraints []string, candidates []*semver.Version) (*semv
 	return best, nil
 }
 
-// IsMajorConflict checks if two constraint strings require different major versions.
+// IsMajorConflict checks if two constraint strings require different major versions
+// by parsing the major version directly from the constraint prefix.
 func IsMajorConflict(c1, c2 string) bool {
-	con1, err1 := semver.NewConstraint(c1)
-	con2, err2 := semver.NewConstraint(c2)
-	if err1 != nil || err2 != nil {
-		return false
+	m1, ok1 := extractMajor(c1)
+	m2, ok2 := extractMajor(c2)
+	if !ok1 || !ok2 {
+		return false // can't determine, assume no conflict
 	}
+	return m1 != m2
+}
 
-	// Test a range of major versions to detect conflict
-	for major := 0; major < 100; major++ {
-		v, _ := semver.NewVersion(fmt.Sprintf("%d.0.0", major))
-		c1Match := con1.Check(v)
-		c2Match := con2.Check(v)
-		if c1Match && c2Match {
-			return false // found a common major
+// extractMajor parses the major version number from a SemVer constraint string.
+// It trims common prefixes (^, ~, >=, >, =, v) and returns the major component.
+func extractMajor(constraint string) (uint64, bool) {
+	s := strings.TrimSpace(constraint)
+	// Strip constraint operators
+	for _, prefix := range []string{"^", "~", ">=", ">", "<=", "<", "="} {
+		s = strings.TrimPrefix(s, prefix)
+	}
+	s = strings.TrimSpace(s)
+	// Strip optional "v" prefix
+	s = strings.TrimPrefix(s, "v")
+	s = strings.TrimPrefix(s, "V")
+	if s == "" {
+		return 0, false
+	}
+	v, err := semver.StrictNewVersion(s)
+	if err != nil {
+		// Try parsing just the major number
+		parts := strings.SplitN(s, ".", 2)
+		v, err = semver.StrictNewVersion(parts[0] + ".0.0")
+		if err != nil {
+			return 0, false
 		}
 	}
-	return true
+	return v.Major(), true
 }

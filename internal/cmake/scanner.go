@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
 )
@@ -43,14 +42,4 @@ func ScanSources(patterns []string, basePath string) ([]string, error) {
 
 	sort.Strings(result)
 	return result, nil
-}
-
-// IsCppSource returns true if the file has a C++ source extension.
-func IsCppSource(path string) bool {
-	ext := strings.ToLower(filepath.Ext(path))
-	switch ext {
-	case ".cpp", ".cxx", ".cc", ".c++", ".c":
-		return true
-	}
-	return false
 }
