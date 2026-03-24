@@ -65,12 +65,18 @@ var removeCmd = &cobra.Command{
 			fmt.Printf("Removed %s/%s/\n", resolver.ModulesDir, name)
 		}
 
-		// Regenerate lock file
-		resolvedDeps, err := resolver.ResolveGraph(dir, cfg)
+		// Remove from lock file
+		lf, err := parser.LoadLockFile(dir)
 		if err != nil {
-			return fmt.Errorf("failed to re-resolve dependencies: %w", err)
+			return fmt.Errorf("failed to load aloy.lock: %w", err)
 		}
-		lf := resolver.BuildLockFile(resolvedDeps)
+		var remaining []model.LockedPackage
+		for _, pkg := range lf.Packages {
+			if pkg.Name != name {
+				remaining = append(remaining, pkg)
+			}
+		}
+		lf.Packages = remaining
 		if err := parser.SaveLockFile(dir, lf); err != nil {
 			return err
 		}

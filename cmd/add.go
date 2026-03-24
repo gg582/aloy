@@ -12,11 +12,12 @@ import (
 )
 
 var (
-	addVersion   string
-	addAlias     string
-	addSystem    bool
-	addCMakeOpts []string
-	addTarget    string
+	addVersion     string
+	addAlias       string
+	addSystem      bool
+	addCMakeOpts   []string
+	addTarget      string
+	addCMakeTarget string
 )
 
 var addCmd = &cobra.Command{
@@ -61,6 +62,10 @@ var addCmd = &cobra.Command{
 					dep.CMakeOptions[parts[0]] = parts[1]
 				}
 			}
+		}
+
+		if addCMakeTarget != "" {
+			dep.CMakeTarget = addCMakeTarget
 		}
 
 		// Determine target to add dep to
@@ -114,6 +119,7 @@ func init() {
 	addCmd.Flags().StringVarP(&addAlias, "alias", "a", "", "Alias name for the dependency")
 	addCmd.Flags().BoolVar(&addSystem, "system", false, "Mark as system dependency (find_package)")
 	addCmd.Flags().StringArrayVar(&addCMakeOpts, "cmake-option", nil, "CMake option in key=value format")
+	addCmd.Flags().StringVar(&addCMakeTarget, "cmake-target", "", "CMake target name for linking (if different from package name)")
 	addCmd.Flags().StringVarP(&addTarget, "target", "t", "", "Target to add the dependency to (default: first target)")
 	rootCmd.AddCommand(addCmd)
 }
