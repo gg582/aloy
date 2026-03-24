@@ -4,14 +4,33 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snowmerak/aloy/internal/model"
 	"github.com/snowmerak/aloy/internal/parser"
 )
 
 // Init creates a new aloy project in the given directory.
-func Init(dir string) error {
+func Init(dir string, targetType string) error {
 	projectName := filepath.Base(dir)
+
+	// Validate target type
+	switch targetType {
+	case "executable", "library", "shared_library", "header_only":
+		// ok
+	default:
+		return fmt.Errorf("invalid target type %q: must be executable, library, shared_library, or header_only", targetType)
+	}
+
+	target := model.Target{
+		Type: targetType,
+		Includes: model.IncludeConfig{
+			Public: []string{"include/"},
+		},
+	}
+	if targetType != "header_only" {
+		target.Sources = []string{"src/**/*.cpp"}
+	}
 
 	cfg := &model.ProjectConfig{
 		Project: model.ProjectMeta{
@@ -20,20 +39,14 @@ func Init(dir string) error {
 			CXXStandard: 17,
 		},
 		Targets: map[string]model.Target{
-			projectName: {
-				Type:    "executable",
-				Sources: []string{"src/**/*.cpp"},
-				Includes: model.IncludeConfig{
-					Public: []string{"include/"},
-				},
-			},
+			projectName: target,
 		},
 	}
 
 	// Create directories
-	dirs := []string{
-		filepath.Join(dir, "src"),
-		filepath.Join(dir, "include"),
+	dirs := []string{filepath.Join(dir, "include")}
+	if targetType != "header_only" {
+		dirs = append(dirs, filepath.Join(dir, "src"))
 	}
 	for _, d := range dirs {
 		if err := os.MkdirAll(d, 0755); err != nil {
@@ -41,18 +54,42 @@ func Init(dir string) error {
 		}
 	}
 
-	// Create a minimal main.cpp
-	mainCpp := filepath.Join(dir, "src", "main.cpp")
-	if _, err := os.Stat(mainCpp); os.IsNotExist(err) {
-		content := `#include <iostream>
+	// Create starter source file
+	var starterFile, starterContent string
+	switch targetType {
+	case "executable":
+		starterFile = filepath.Join(dir, "src", "main.cpp")
+		starterContent = `#include <iostream>
 
 int main() {
     std::cout << "Hello from ` + projectName + `!" << std::endl;
     return 0;
 }
 `
-		if err := os.WriteFile(mainCpp, []byte(content), 0644); err != nil {
-			return fmt.Errorf("failed to create main.cpp: %w", err)
+	case "library", "shared_library":
+		starterFile = filepath.Join(dir, "src", projectName+".cpp")
+		starterContent = `#include "` + projectName + `.h"
+`
+		// Also create header
+		headerFile := filepath.Join(dir, "include", projectName+".h")
+		if _, err := os.Stat(headerFile); os.IsNotExist(err) {
+			headerGuard := strings.ToUpper(projectName) + "_H"
+			hContent := "#ifndef " + headerGuard + "\n#define " + headerGuard + "\n\n// TODO: add declarations\n\n#endif // " + headerGuard + "\n"
+			if err := os.WriteFile(headerFile, []byte(hContent), 0644); err != nil {
+				return fmt.Errorf("failed to create header: %w", err)
+			}
+		}
+	case "header_only":
+		starterFile = filepath.Join(dir, "include", projectName+".h")
+		headerGuard := strings.ToUpper(projectName) + "_H"
+		starterContent = "#ifndef " + headerGuard + "\n#define " + headerGuard + "\n\n// TODO: add declarations\n\n#endif // " + headerGuard + "\n"
+	}
+
+	if starterFile != "" {
+		if _, err := os.Stat(starterFile); os.IsNotExist(err) {
+			if err := os.WriteFile(starterFile, []byte(starterContent), 0644); err != nil {
+				return fmt.Errorf("failed to create starter file: %w", err)
+			}
 		}
 	}
 
@@ -64,10 +101,8 @@ int main() {
 	// Append to .gitignore
 	appendGitignore(dir)
 
-	fmt.Println("Initialized aloy project:", projectName)
+	fmt.Printf("Initialized aloy project: %s (type: %s)\n", projectName, targetType)
 	fmt.Println("  project.yaml created")
-	fmt.Println("  src/ and include/ directories created")
-	fmt.Println("  src/main.cpp created")
 	return nil
 }
 
