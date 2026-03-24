@@ -1,0 +1,12 @@
+version: 1
+packages:
+    - name: fmt
+      git_url: https://github.com/fmtlib/fmt
+      resolved_version: 12.1.0
+      commit_sha: 407c905e45ad75fc29bf0f9bb7c5c2fd3475976f
+      cmake_target: fmt
+    - name: json
+      git_url: https://github.com/nlohmann/json
+      resolved_version: 3.12.0
+      commit_sha: 55f93686c01528224f448c19128836e7df245f72
+      cmake_target: nlohmann_json
