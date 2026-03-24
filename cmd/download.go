@@ -35,18 +35,32 @@ var downloadCmd = &cobra.Command{
 			return err
 		}
 
+		downloaded := 0
 		for _, pkg := range lf.Packages {
+			if pkg.IsSystem {
+				fmt.Printf("  Skipping system package %s\n", pkg.Name)
+				continue
+			}
+			if pkg.GitURL == "" || pkg.CommitSHA == "" {
+				fmt.Fprintf(os.Stderr, "warning: skipping %s (missing git URL or commit SHA)\n", pkg.Name)
+				continue
+			}
 			dest := filepath.Join(modulesBase, pkg.Name)
-			fmt.Printf("  Downloading %s @ %s ...\n", pkg.Name, pkg.CommitSHA[:8])
+			shortSHA := pkg.CommitSHA
+			if len(shortSHA) > 8 {
+				shortSHA = shortSHA[:8]
+			}
+			fmt.Printf("  Downloading %s @ %s ...\n", pkg.Name, shortSHA)
 			if err := git.CloneFull(pkg.GitURL, dest); err != nil {
 				return fmt.Errorf("failed to clone %s: %w", pkg.Name, err)
 			}
 			if err := git.Checkout(dest, pkg.CommitSHA); err != nil {
 				return fmt.Errorf("failed to checkout %s @ %s: %w", pkg.Name, pkg.CommitSHA, err)
 			}
+			downloaded++
 		}
 
-		fmt.Printf("Downloaded %d packages.\n", len(lf.Packages))
+		fmt.Printf("Downloaded %d packages.\n", downloaded)
 		return nil
 	},
 }
