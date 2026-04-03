@@ -48,8 +48,10 @@ var cleanCmd = &cobra.Command{
 			cmakeLists := filepath.Join(dir, "CMakeLists.txt")
 			os.Remove(cmakeLists)
 			fmt.Println("Removed CMakeLists.txt")
-			if err := os.Remove(filepath.Join(dir, "Makefile")); err == nil {
-				fmt.Println("Removed Makefile")
+			if buildSystem != "makefile" {
+				if err := os.Remove(filepath.Join(dir, "Makefile")); err == nil {
+					fmt.Println("Removed Makefile")
+				}
 			}
 		}
 

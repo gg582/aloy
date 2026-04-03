@@ -100,7 +100,7 @@ func GenerateMaster(projectRoot string, cfg *model.ProjectConfig, resolvedDeps [
 			obj := objName(out, s)
 			fmt.Fprintf(&b, "%s: %s\n", obj, s)
 			fmt.Fprintf(&b, "\t@mkdir -p $(dir $@)\n")
-			fmt.Fprintf(&b, "\t$(CXX) $(CXXFLAGS)%s -c $< -o $@\n\n", includeFlags(&t))
+			fmt.Fprintf(&b, "\t$(CXX) $(CXXFLAGS) %s -c $< -o $@\n\n", includeFlags(&t))
 		}
 
 		fmt.Fprintf(&b, "%s: %s\n", out, strings.Join(objs, " "))
@@ -176,12 +176,12 @@ func sanitize(name string) string {
 func includeFlags(t *model.Target) string {
 	var parts []string
 	for _, inc := range t.Includes.Public {
-		parts = append(parts, " -I"+inc)
+		parts = append(parts, "-I"+inc)
 	}
 	for _, inc := range t.Includes.Private {
-		parts = append(parts, " -I"+inc)
+		parts = append(parts, "-I"+inc)
 	}
-	return strings.Join(parts, "")
+	return strings.Join(parts, " ")
 }
 
 func objName(targetName, src string) string {
