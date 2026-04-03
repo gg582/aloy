@@ -27,10 +27,15 @@ var cleanCmd = &cobra.Command{
 			return fmt.Errorf("failed to remove build/: %w", err)
 		}
 		fmt.Println("Removed build/")
-		makefilePath := filepath.Join(dir, "Makefile")
-		if cfg, err := parser.LoadProject(dir); err == nil && cfg.BuildSystem == "makefile" {
-			_ = os.Remove(makefilePath)
-			fmt.Println("Removed Makefile")
+		buildSystem := "cmake"
+		if cfg, err := parser.LoadProject(dir); err == nil && cfg.BuildSystem != "" {
+			buildSystem = cfg.BuildSystem
+		}
+		if buildSystem == "makefile" {
+			makefilePath := filepath.Join(dir, "Makefile")
+			if err := os.Remove(makefilePath); err == nil {
+				fmt.Println("Removed Makefile")
+			}
 		}
 
 		if cleanAll {
@@ -43,7 +48,7 @@ var cleanCmd = &cobra.Command{
 			cmakeLists := filepath.Join(dir, "CMakeLists.txt")
 			os.Remove(cmakeLists)
 			fmt.Println("Removed CMakeLists.txt")
-			if err := os.Remove(makefilePath); err == nil {
+			if err := os.Remove(filepath.Join(dir, "Makefile")); err == nil {
 				fmt.Println("Removed Makefile")
 			}
 		}

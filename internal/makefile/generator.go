@@ -185,7 +185,7 @@ func includeFlags(t *model.Target) string {
 }
 
 func objName(targetName, src string) string {
-	clean := strings.ReplaceAll(src, "/", "_")
-	clean = strings.ReplaceAll(clean, "\\", "_")
-	return filepath.ToSlash(filepath.Join(".aloy_make_objs", targetName, clean+".o"))
+	sanitizedPath := strings.ReplaceAll(src, "/", "_")
+	sanitizedPath = strings.ReplaceAll(sanitizedPath, "\\", "_")
+	return filepath.ToSlash(filepath.Join(".aloy_make_objs", targetName, sanitizedPath+".o"))
 }
