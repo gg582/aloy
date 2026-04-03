@@ -115,7 +115,7 @@ func GenerateMaster(projectRoot string, cfg *model.ProjectConfig, resolvedDeps [
 	}
 
 	fmt.Fprintf(&b, "clean:\n")
-	fmt.Fprintf(&b, "\trm -rf .aloy_make_objs")
+	fmt.Fprintf(&b, "\t$(RM) -r .aloy_make_objs")
 	for _, n := range allTargets {
 		fmt.Fprintf(&b, " %s", n)
 	}
@@ -186,5 +186,6 @@ func includeFlags(t *model.Target) string {
 
 func objName(targetName, src string) string {
 	clean := strings.ReplaceAll(src, "/", "_")
+	clean = strings.ReplaceAll(clean, "\\", "_")
 	return filepath.ToSlash(filepath.Join(".aloy_make_objs", targetName, clean+".o"))
 }
