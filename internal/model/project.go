@@ -5,6 +5,7 @@ type ProjectConfig struct {
 	Project     ProjectMeta       `yaml:"project"`
 	Targets     map[string]Target `yaml:"targets,omitempty"`
 	InjectCMake string            `yaml:"inject_cmake,omitempty"`
+	BuildSystem string            `yaml:"build_system,omitempty"`
 }
 
 // ProjectMeta holds the top-level project metadata.

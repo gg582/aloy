@@ -67,6 +67,7 @@ project:
   name: MyStreamingServer
   version: 1.0.0
   cxx_standard: 17
+build_system: cmake             # cmake (default) or makefile
 
 targets:
   mediaserver:
@@ -118,6 +119,12 @@ inject_cmake: "cmake/extra_logic.cmake"
 | `alias` | No | Alias — used as the directory name and reference name |
 | `cmake_target` | No | CMake target name for linking (when it differs from the package name) |
 | `cmake_options` | No | `key: value` map — injected as `set(KEY VAL CACHE ... FORCE)` |
+
+### Build System
+
+| Field | Required | Description |
+|---|---|---|
+| `build_system` | No | Build backend. `cmake` (default) or `makefile` |
 
 > **When is `cmake_target` needed?**
 > Some libraries have CMake target names that differ from their repository name.
@@ -212,6 +219,13 @@ This is because each project's `project.yaml` is managed independently. Transiti
 - Dependencies with `cmake_target` set are linked using that name in `target_link_libraries`
 - Custom CMake logic can be included via `inject_cmake`
 - Separate CMakeLists.txt files are generated for aloy sub-packages inside `.my_modules/`
+
+## Makefile Generation
+
+- Set `build_system: makefile` in `project.yaml` to generate `Makefile` instead of `CMakeLists.txt`
+- Root `Makefile` invokes `make -C .my_modules/<dep>` for git dependencies, including aloy sub-packages
+- Makefile is generated for aloy sub-packages inside `.my_modules/` as well
+- `aloy build` uses `make` when `build_system: makefile` is set
 
 ### Link Name Priority
 

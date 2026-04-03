@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/snowmerak/aloy/internal/parser"
 	"github.com/spf13/cobra"
 )
 
@@ -33,17 +34,40 @@ var buildCmd = &cobra.Command{
 		}
 
 		// Build
-		fmt.Printf("Building (%s)...\n", buildConfig)
-		buildArgs := []string{"--build", "build", "--config", buildConfig}
-		if buildParallel > 0 {
-			buildArgs = append(buildArgs, "--parallel", fmt.Sprintf("%d", buildParallel))
+		cfg, err := parser.LoadProject(dir)
+		if err != nil {
+			return fmt.Errorf("failed to load project.yaml: %w", err)
 		}
-		cmakeCmd := exec.Command("cmake", buildArgs...)
-		cmakeCmd.Dir = dir
-		cmakeCmd.Stdout = os.Stdout
-		cmakeCmd.Stderr = os.Stderr
-		if err := cmakeCmd.Run(); err != nil {
-			return fmt.Errorf("build failed: %w", err)
+		buildSystem := cfg.BuildSystem
+		if buildSystem == "" {
+			buildSystem = "cmake"
+		}
+
+		fmt.Printf("Building (%s)...\n", buildConfig)
+		if buildSystem == "makefile" {
+			makeArgs := []string{}
+			if buildParallel > 0 {
+				makeArgs = append(makeArgs, fmt.Sprintf("-j%d", buildParallel))
+			}
+			makeCmd := exec.Command("make", makeArgs...)
+			makeCmd.Dir = dir
+			makeCmd.Stdout = os.Stdout
+			makeCmd.Stderr = os.Stderr
+			if err := makeCmd.Run(); err != nil {
+				return fmt.Errorf("build failed: %w", err)
+			}
+		} else {
+			buildArgs := []string{"--build", "build", "--config", buildConfig}
+			if buildParallel > 0 {
+				buildArgs = append(buildArgs, "--parallel", fmt.Sprintf("%d", buildParallel))
+			}
+			cmakeCmd := exec.Command("cmake", buildArgs...)
+			cmakeCmd.Dir = dir
+			cmakeCmd.Stdout = os.Stdout
+			cmakeCmd.Stderr = os.Stderr
+			if err := cmakeCmd.Run(); err != nil {
+				return fmt.Errorf("build failed: %w", err)
+			}
 		}
 
 		fmt.Println("Build complete!")
@@ -61,24 +85,42 @@ func init() {
 func needsSync(dir string) bool {
 	buildDir := filepath.Join(dir, "build")
 	cmakeLists := filepath.Join(dir, "CMakeLists.txt")
+	makefilePath := filepath.Join(dir, "Makefile")
 	projectYaml := filepath.Join(dir, "project.yaml")
 
-	// No build dir or no CMakeLists.txt → need sync
-	if _, err := os.Stat(buildDir); os.IsNotExist(err) {
-		return true
-	}
-	if _, err := os.Stat(cmakeLists); os.IsNotExist(err) {
-		return true
+	buildSystem := "cmake"
+	if cfg, err := parser.LoadProject(dir); err == nil && cfg.BuildSystem != "" {
+		buildSystem = cfg.BuildSystem
 	}
 
-	// If project.yaml is newer than CMakeLists.txt → need sync
+	// Missing generated build files → need sync
+	switch buildSystem {
+	case "makefile":
+		if _, err := os.Stat(makefilePath); os.IsNotExist(err) {
+			return true
+		}
+	default:
+		// No build dir or no CMakeLists.txt → need sync
+		if _, err := os.Stat(buildDir); os.IsNotExist(err) {
+			return true
+		}
+		if _, err := os.Stat(cmakeLists); os.IsNotExist(err) {
+			return true
+		}
+	}
+
+	// If project.yaml is newer than generated file → need sync
 	yamlInfo, err := os.Stat(projectYaml)
 	if err != nil {
 		return true
 	}
-	cmakeInfo, err := os.Stat(cmakeLists)
+	generatedPath := cmakeLists
+	if buildSystem == "makefile" {
+		generatedPath = makefilePath
+	}
+	generatedInfo, err := os.Stat(generatedPath)
 	if err != nil {
 		return true
 	}
-	return yamlInfo.ModTime().After(cmakeInfo.ModTime())
+	return yamlInfo.ModTime().After(generatedInfo.ModTime())
 }

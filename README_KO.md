@@ -67,6 +67,7 @@ project:
   name: MyStreamingServer
   version: 1.0.0
   cxx_standard: 17
+build_system: cmake             # cmake (기본값) 또는 makefile
 
 targets:
   mediaserver:
@@ -118,6 +119,12 @@ inject_cmake: "cmake/extra_logic.cmake"
 | `alias` | - | 별칭 — 디렉토리 이름 및 참조 이름으로 사용 |
 | `cmake_target` | - | 링킹 시 사용할 CMake 타겟 이름 (패키지 이름과 다를 때) |
 | `cmake_options` | - | `key: value` 맵 — `set(KEY VAL CACHE ... FORCE)` 로 주입 |
+
+### 빌드 시스템
+
+| 필드 | 필수 | 설명 |
+|---|---|---|
+| `build_system` | - | 빌드 백엔드. `cmake`(기본값) 또는 `makefile` |
 
 > **`cmake_target`은 언제 필요한가?**
 > 일부 라이브러리는 CMake 타겟 이름이 저장소 이름과 다릅니다.
@@ -212,6 +219,13 @@ aloy 서브패키지(`.my_modules/` 내에서 `project.yaml`을 가진 패키지
 - `cmake_target`이 지정된 의존성은 해당 이름으로 `target_link_libraries`에 링킹됩니다
 - `inject_cmake` 로 커스텀 CMake 로직을 삽입할 수 있습니다
 - aloy 서브패키지에 대해서는 `.my_modules/` 내에 별도의 CMakeLists.txt를 생성합니다
+
+## Makefile 생성
+
+- `project.yaml`에 `build_system: makefile`을 설정하면 `CMakeLists.txt` 대신 `Makefile`을 생성합니다
+- 루트 `Makefile`은 git 의존성에 대해 `make -C .my_modules/<dep>`를 호출하며, aloy 서브패키지도 포함됩니다
+- aloy 서브패키지에도 `.my_modules/` 내부에 별도 `Makefile`을 생성합니다
+- `build_system: makefile`일 때 `aloy build`는 `make`를 사용합니다
 
 ### 링킹 우선순위
 
