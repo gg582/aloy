@@ -45,9 +45,9 @@ var buildCmd = &cobra.Command{
 
 		fmt.Printf("Building (%s)...\n", buildConfig)
 		if buildSystem == "makefile" {
-			makeArgs := []string{}
+			var makeArgs []string
 			if buildParallel > 0 {
-				makeArgs = []string{fmt.Sprintf("-j%d", buildParallel)}
+				makeArgs = append(makeArgs, fmt.Sprintf("-j%d", buildParallel))
 			}
 			makeCmd := exec.Command("make", makeArgs...)
 			makeCmd.Dir = dir
