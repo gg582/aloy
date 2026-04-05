@@ -5,6 +5,8 @@ project(example VERSION 0.1.0)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+enable_testing()
+
 add_subdirectory(.my_modules/fmt)
 add_subdirectory(.my_modules/json)
 add_subdirectory(.my_modules/testlib)
@@ -21,4 +23,13 @@ target_link_libraries(example PRIVATE
     nlohmann_json
     testlib
 )
+
+add_executable(mytest)
+target_sources(mytest PRIVATE
+    tests/test.cpp
+)
+target_link_libraries(mytest PRIVATE
+    fmt
+)
+    add_test(NAME mytest COMMAND mytest)
 

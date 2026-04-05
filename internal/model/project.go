@@ -16,11 +16,12 @@ type ProjectMeta struct {
 
 // Target defines an executable or library build target.
 type Target struct {
-	Type         string                    `yaml:"type"` // executable, library, shared_library, header_only
+	Type         string                    `yaml:"type"` // executable, library, shared_library, header_only, test
 	Sources      []string                  `yaml:"sources,omitempty"`
 	Includes     IncludeConfig             `yaml:"includes,omitempty"`
 	Platforms    map[string]PlatformConfig `yaml:"platforms,omitempty"`
 	Dependencies []Dependency              `yaml:"dependencies,omitempty"`
+	Pch          string                    `yaml:"pch,omitempty"`
 }
 
 // IncludeConfig separates public and private include directories.

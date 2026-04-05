@@ -70,6 +70,17 @@ func writeHeader(b *strings.Builder, cfg *model.ProjectConfig) {
 		fmt.Fprintf(b, "set(CMAKE_CXX_STANDARD %d)\n", cfg.Project.CXXStandard)
 		b.WriteString("set(CMAKE_CXX_STANDARD_REQUIRED ON)\n\n")
 	}
+
+	hasTest := false
+	for _, target := range cfg.Targets {
+		if target.Type == "test" {
+			hasTest = true
+			break
+		}
+	}
+	if hasTest {
+		b.WriteString("enable_testing()\n\n")
+	}
 }
 
 func writeDependencies(b *strings.Builder, cfg *model.ProjectConfig, resolvedDeps []resolver.ResolvedDep) {
@@ -149,7 +160,7 @@ func writeTargets(b *strings.Builder, cfg *model.ProjectConfig, projectRoot stri
 func writeTargetBlock(b *strings.Builder, cmakeName string, target *model.Target, sources []string, projectRoot string) error {
 	// Add target
 	switch target.Type {
-	case "executable":
+	case "executable", "test":
 		fmt.Fprintf(b, "add_executable(%s)\n", cmakeName)
 	case "library":
 		fmt.Fprintf(b, "add_library(%s STATIC)\n", cmakeName)
@@ -248,6 +259,19 @@ func writeTargetBlock(b *strings.Builder, cmakeName string, target *model.Target
 
 		b.WriteString("endif()\n")
 	}
+
+	if target.Pch != "" {
+		keyword := "PRIVATE"
+		if target.Type == "header_only" {
+			keyword = "INTERFACE"
+		}
+		fmt.Fprintf(b, "    target_precompile_headers(%s %s %s)\n", cmakeName, keyword, target.Pch)
+	}
+
+	if target.Type == "test" {
+		fmt.Fprintf(b, "    add_test(NAME %s COMMAND %s)\n", cmakeName, cmakeName)
+	}
+
 	return nil
 }
 

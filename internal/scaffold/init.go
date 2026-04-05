@@ -29,7 +29,11 @@ func Init(dir string, targetType string) error {
 		},
 	}
 	if targetType != "header_only" {
-		target.Sources = []string{"src/**/*.cpp"}
+		if targetType == "executable" {
+			target.Sources = []string{"src/main.cpp"}
+		} else {
+			target.Sources = []string{"src/**/*.cpp"}
+		}
 	}
 
 	cfg := &model.ProjectConfig{
@@ -40,11 +44,15 @@ func Init(dir string, targetType string) error {
 		},
 		Targets: map[string]model.Target{
 			projectName: target,
+			projectName + "_test": {
+				Type: "test",
+				Sources: []string{"tests/**/*.cpp"},
+			},
 		},
 	}
 
 	// Create directories
-	dirs := []string{filepath.Join(dir, "include")}
+	dirs := []string{filepath.Join(dir, "include"), filepath.Join(dir, "tests")}
 	if targetType != "header_only" {
 		dirs = append(dirs, filepath.Join(dir, "src"))
 	}
@@ -90,6 +98,22 @@ int main() {
 			if err := os.WriteFile(starterFile, []byte(starterContent), 0644); err != nil {
 				return fmt.Errorf("failed to create starter file: %w", err)
 			}
+		}
+	}
+
+	// Create starter test file
+	testFile := filepath.Join(dir, "tests", "test.cpp")
+	if _, err := os.Stat(testFile); os.IsNotExist(err) {
+		testContent := `#include <iostream>
+
+int main() {
+    std::cout << "Running tests for ` + projectName + `..." << std::endl;
+    // TODO: Add your assertions here
+    return 0; // Success
+}
+`
+		if err := os.WriteFile(testFile, []byte(testContent), 0644); err != nil {
+			return fmt.Errorf("failed to create test file: %w", err)
 		}
 	}
 
