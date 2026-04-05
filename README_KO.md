@@ -45,6 +45,12 @@ aloy sync
 
 # 빌드
 aloy build
+
+# 실행 파일 빌드 및 즉시 실행
+aloy run
+
+# CTest를 통해 통합 테스트 실행
+aloy test
 ```
 
 ## 프로젝트 구조
@@ -54,6 +60,7 @@ my_project/
 ├── project.yaml             # 프로젝트 정의 및 의존성 명세
 ├── aloy.lock                # 고정된 의존성 버전 및 커밋 해시
 ├── src/                     # 소스 코드
+├── tests/                   # [자동] 테스트 코드
 ├── include/                 # 공용 헤더
 ├── .my_modules/             # [자동] 다운로드된 패키지 소스
 ├── build/                   # [자동] CMake 빌드 결과물
@@ -70,7 +77,8 @@ project:
 
 targets:
   mediaserver:
-    type: executable           # executable, library, shared_library, header_only
+    type: executable           # executable, library, shared_library, header_only, test
+    pch: "include/pch.h"       # [선택사항] 사전 컴파일된 헤더
     sources:
       - "src/main.cpp"
       - "src/core/**/*.cpp"    # glob 패턴 지원
@@ -128,11 +136,14 @@ inject_cmake: "cmake/extra_logic.cmake"
 
 | 명령어 | 설명 |
 |---|---|
-| `aloy init` | 프로젝트 초기화 (`project.yaml`, `src/`, `include/` 생성) |
+| `aloy init` | 프로젝트 초기화 (`project.yaml`, `src/`, `tests/`, `include/` 생성) |
 | `aloy add <url\|name>` | 의존성 추가 |
 | `aloy remove <name>` | 의존성 제거 (이름 또는 별칭으로 검색) |
 | `aloy sync` | 의존성 해석 → CMake 생성 → `cmake -B build` 실행 |
 | `aloy build` | 빌드 수행 (필요 시 sync 자동 호출) |
+| `aloy run` | 실행 파일 타겟을 빌드하고 즉시 실행 |
+| `aloy test` | 테스트 타겟(`type: test`)을 CTest를 통해 실행 |
+| `aloy tree` | 의존성 해석 결과를 트리 구조로 출력 |
 | `aloy clean` | `build/` 삭제 (`--all`로 `.my_modules/` + `CMakeLists.txt`도 삭제) |
 | `aloy download` | `aloy.lock` 기반으로 소스만 클론 (CI용) |
 | `aloy update` | SemVer 범위 내 최신 버전으로 갱신 (`--dry-run` 지원) |
@@ -229,6 +240,7 @@ aloy 서브패키지(`.my_modules/` 내에서 `project.yaml`을 가진 패키지
 | `library` | `add_library(STATIC)` | 정적 라이브러리 |
 | `shared_library` | `add_library(SHARED)` | 공유 라이브러리 |
 | `header_only` | `add_library(INTERFACE)` | 헤더 온리 라이브러리 (소스 불필요) |
+| `test` | `add_test() / add_executable()` | CTest로 구동되는 테스트용 바이너리 |
 
 ## 알려진 제한 사항
 
