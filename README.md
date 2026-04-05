@@ -45,6 +45,12 @@ aloy sync
 
 # Build
 aloy build
+
+# Build and run the executable
+aloy run
+
+# Build and run tests via CTest
+aloy test
 ```
 
 ## Project Structure
@@ -54,6 +60,7 @@ my_project/
 ├── project.yaml             # Project definition and dependency spec
 ├── aloy.lock                # Pinned dependency versions and commit hashes
 ├── src/                     # Source code
+├── tests/                   # [Auto] Test code
 ├── include/                 # Public headers
 ├── .my_modules/             # [Auto] Downloaded package sources
 ├── build/                   # [Auto] CMake build output
@@ -70,7 +77,8 @@ project:
 
 targets:
   mediaserver:
-    type: executable           # executable, library, shared_library, header_only
+    type: executable           # executable, library, shared_library, header_only, test
+    pch: "include/pch.h"       # [Optional] Precompiled header
     sources:
       - "src/main.cpp"
       - "src/core/**/*.cpp"    # glob patterns supported
@@ -128,11 +136,14 @@ inject_cmake: "cmake/extra_logic.cmake"
 
 | Command | Description |
 |---|---|
-| `aloy init` | Initialize project (`project.yaml`, `src/`, `include/`) |
+| `aloy init` | Initialize project (`project.yaml`, `src/`, `tests/`, `include/`) |
 | `aloy add <url\|name>` | Add a dependency |
 | `aloy remove <name>` | Remove a dependency (searches by name or alias) |
 | `aloy sync` | Resolve dependencies → generate CMake → run `cmake -B build` |
 | `aloy build` | Build the project (auto-runs sync if needed) |
+| `aloy run` | Build and run an executable target |
+| `aloy test` | Build and run testing targets (`type: test`) via CTest |
+| `aloy tree` | Show the resolved dependency hierarchy tree |
 | `aloy clean` | Remove `build/` (`--all` also removes `.my_modules/` + `CMakeLists.txt`) |
 | `aloy download` | Clone sources from `aloy.lock` only (for CI) |
 | `aloy update` | Update to latest versions within SemVer range (`--dry-run` supported) |
@@ -229,6 +240,7 @@ The name used in `target_link_libraries` is determined by this priority:
 | `library` | `add_library(STATIC)` | Static library |
 | `shared_library` | `add_library(SHARED)` | Shared / dynamic library |
 | `header_only` | `add_library(INTERFACE)` | Header-only library (no sources required) |
+| `test` | `add_test() / add_executable()` | Test binary to be run via CTest |
 
 ## Known Limitations
 
