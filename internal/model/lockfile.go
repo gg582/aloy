@@ -9,6 +9,9 @@ type LockFile struct {
 // LockedPackage records a resolved dependency at a specific commit.
 type LockedPackage struct {
 	Name            string `yaml:"name"`
+	LogicalName     string `yaml:"logical_name,omitempty"`
+	RepoDir         string `yaml:"repo_dir,omitempty"`
+	Subdir          string `yaml:"subdir,omitempty"`
 	GitURL          string `yaml:"git_url"`
 	ResolvedVersion string `yaml:"resolved_version"`
 	CommitSHA       string `yaml:"commit_sha"`

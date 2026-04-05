@@ -60,7 +60,7 @@ func runSync(dir string) error {
 		if dep.IsSystem || !dep.IsAloyPackage {
 			continue
 		}
-		modulePath := filepath.Join(dir, resolver.ModulesDir, dep.ModuleDir)
+		modulePath := filepath.Join(dir, resolver.ModulesDir, dep.RepoDir, dep.Subdir)
 		fmt.Printf("  Generating CMake for %s...\n", dep.Name)
 		if err := cmake.GenerateForModule(modulePath); err != nil {
 			return fmt.Errorf("failed to generate CMake for %s: %w", dep.Name, err)

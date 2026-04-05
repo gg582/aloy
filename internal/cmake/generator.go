@@ -87,7 +87,7 @@ func writeDependencies(b *strings.Builder, cfg *model.ProjectConfig, resolvedDep
 	// Build a lookup for resolved deps
 	depMap := make(map[string]*resolver.ResolvedDep)
 	for i := range resolvedDeps {
-		depMap[resolvedDeps[i].ModuleDir] = &resolvedDeps[i]
+		depMap[resolvedDeps[i].LogicalName] = &resolvedDeps[i]
 	}
 
 	// Collect all unique dependencies across targets
@@ -115,8 +115,8 @@ func writeDependencies(b *strings.Builder, cfg *model.ProjectConfig, resolvedDep
 		if dep.Type == "system" {
 			continue
 		}
-		dirName := dep.ModuleDir()
-		rd := depMap[dirName]
+		logicalName := dep.ModuleDir()
+		rd := depMap[logicalName]
 		if rd == nil {
 			continue
 		}
@@ -131,7 +131,10 @@ func writeDependencies(b *strings.Builder, cfg *model.ProjectConfig, resolvedDep
 			fmt.Fprintf(b, "set(%s %q CACHE %s \"\" FORCE)\n", k, v, cacheType)
 		}
 
-		fmt.Fprintf(b, "add_subdirectory(%s/%s)\n", resolver.ModulesDir, dirName)
+		sourcePath := filepath.ToSlash(filepath.Join(resolver.ModulesDir, rd.RepoDir, rd.Subdir))
+		binaryPath := filepath.ToSlash(filepath.Join(resolver.ModulesDir, rd.LogicalName))
+		// We use sourcePath and binaryPath to allow multiple subdirectories from the same repo
+		fmt.Fprintf(b, "add_subdirectory(%s %s)\n", sourcePath, binaryPath)
 	}
 
 	if len(allDeps) > 0 {

@@ -7,9 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 enable_testing()
 
-add_subdirectory(.my_modules/fmt)
-add_subdirectory(.my_modules/json)
-add_subdirectory(.my_modules/testlib)
+add_subdirectory(.my_modules/fmt-f479be88947f9a61-12.1.0 .my_modules/fmt)
+add_subdirectory(.my_modules/json-0aa6c8de225b4322-v3.12.0 .my_modules/json)
+add_subdirectory(.my_modules/testlib-06809389eb322628-v1.0.0 .my_modules/testlib)
 
 add_executable(example)
 target_sources(example PRIVATE

@@ -52,9 +52,9 @@ func collectDirectDependencies(cfg *model.ProjectConfig) []model.Dependency {
 	var deps []model.Dependency
 	for _, target := range cfg.Targets {
 		for _, d := range target.Dependencies {
-			dirName := d.ModuleDir()
-			if !seen[dirName] {
-				seen[dirName] = true
+			logicalName := d.ModuleDir()
+			if !seen[logicalName] {
+				seen[logicalName] = true
 				if d.Type != "system" {
 					deps = append(deps, d)
 				}
@@ -70,16 +70,18 @@ func printTree(rootDir string, dep model.Dependency, lf *model.LockFile, prefix 
 		connector = "└── "
 	}
 
-	locked := lf.FindPackage(dep.Name)
+	locked := lf.FindPackage(dep.ModuleDir())
 	if locked == nil {
-		locked = lf.FindPackage(dep.ModuleDir())
+		locked = lf.FindPackage(dep.Name)
 	}
 
 	versionStr := dep.Version
 	if locked != nil && locked.ResolvedVersion != "" {
 		versionStr = locked.ResolvedVersion
-	}
-	if versionStr == "" {
+		if len(locked.CommitSHA) >= 7 {
+			versionStr += fmt.Sprintf(" %s", locked.CommitSHA[:7])
+		}
+	} else if versionStr == "" {
 		versionStr = "latest"
 	}
 
@@ -91,7 +93,7 @@ func printTree(rootDir string, dep model.Dependency, lf *model.LockFile, prefix 
 	}
 
 	if locked != nil && locked.IsAloyPackage {
-		subDir := filepath.Join(rootDir, resolver.ModulesDir, dep.ModuleDir())
+		subDir := filepath.Join(rootDir, resolver.ModulesDir, locked.RepoDir, locked.Subdir)
 		subCfg, err := parser.LoadProject(subDir)
 		if err == nil {
 			subDeps := collectDirectDependencies(subCfg)

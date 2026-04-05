@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/snowmerak/aloy/internal/git"
@@ -14,59 +15,70 @@ import (
 
 const ModulesDir = ".my_modules"
 
+var cloneMu sync.Mutex
+
 // ResolvedDep holds the final resolved information for a dependency.
 type ResolvedDep struct {
 	Name            string
 	GitURL          string
 	ResolvedVersion string
 	CommitSHA       string
-	ModuleDir       string // path relative to project root
+	LogicalName     string // used as the unique ID for the dependency in aloy (alias if present, else name)
+	RepoDir         string // directory where the repo is cloned (e.g. hash-version)
+	Subdir          string // subdirectory inside the repo
 	CMakeTarget     string // detected or overridden CMake project name
 	IsAloyPackage   bool   // has project.yaml
 	IsSystem        bool   // type: system
 }
 
-// resolveSingle clones a single dependency, resolves its version, and returns the result.
-// This function is safe to call from multiple goroutines (operates on its own directory).
-func resolveSingle(dep model.Dependency, modulesBase string) (*ResolvedDep, error) {
-	dirName := dep.ModuleDir()
-	destPath := filepath.Join(modulesBase, dirName)
+// resolveSingle resolves version from cache, clones referencing cache, and returns result.
+func resolveSingle(dep model.Dependency, modulesBase, cachePath string) (*ResolvedDep, error) {
+	logicalName := dep.ModuleDir()
 
-	fmt.Printf("  Fetching %s ...\n", dep.Name)
-	if err := git.CloneFull(dep.Git, destPath); err != nil {
-		return nil, fmt.Errorf("failed to clone %s: %w", dep.Name, err)
-	}
-
+	// 1. Resolve version using cachePath (bare repo)
 	var resolvedVersion string
 
 	if dep.Version != "" {
-		if err := git.FetchTags(destPath); err != nil {
-			return nil, fmt.Errorf("failed to fetch tags for %s: %w", dep.Name, err)
-		}
-		tag, ver, err := git.FindBestTag(destPath, dep.Version)
+		tag, ver, err := git.FindBestTag(cachePath, dep.Version)
 		if err != nil {
-			branch, brErr := git.DefaultBranch(destPath)
+			branch, brErr := git.DefaultBranch(cachePath)
 			if brErr != nil {
 				return nil, fmt.Errorf("no matching version for %s (%s) and no default branch: %w", dep.Name, dep.Version, err)
 			}
 			fmt.Printf("  Warning: no semver tags for %s, using branch %s\n", dep.Name, branch)
-			if err := git.Checkout(destPath, branch); err != nil {
-				return nil, err
-			}
 			resolvedVersion = branch
 		} else {
-			resolvedVersion = ver.String()
-			if err := git.Checkout(destPath, tag); err != nil {
-				return nil, err
-			}
+			// Used to be ver.String(), but we need the exact tag string for checkout
+			resolvedVersion = tag
+			_ = ver // silences unused var
 		}
 	} else {
-		branch, err := git.DefaultBranch(destPath)
+		branch, err := git.DefaultBranch(cachePath)
 		if err != nil {
 			return nil, fmt.Errorf("no default branch for %s: %w", dep.Name, err)
 		}
 		resolvedVersion = branch
 	}
+
+	cacheBase := filepath.Base(cachePath)
+	cacheBase = strings.TrimSuffix(cacheBase, ".git")
+	safeVersion := strings.ReplaceAll(resolvedVersion, "/", "_")
+	repoDir := fmt.Sprintf("%s-%s", cacheBase, safeVersion)
+
+	destPath := filepath.Join(modulesBase, repoDir)
+
+	fmt.Printf("  Resolving %s (version: %s)...\n", dep.Name, resolvedVersion)
+
+	cloneMu.Lock()
+	if err := git.CloneFromCache(cachePath, dep.Git, destPath); err != nil {
+		cloneMu.Unlock()
+		return nil, fmt.Errorf("failed to clone %s: %w", dep.Name, err)
+	}
+	if err := git.Checkout(destPath, resolvedVersion); err != nil {
+		cloneMu.Unlock()
+		return nil, err
+	}
+	cloneMu.Unlock()
 
 	sha, err := git.GetHeadSHA(destPath)
 	if err != nil {
@@ -74,7 +86,7 @@ func resolveSingle(dep model.Dependency, modulesBase string) (*ResolvedDep, erro
 	}
 
 	isAloy := false
-	projectYamlPath := filepath.Join(destPath, parser.ProjectFileName)
+	projectYamlPath := filepath.Join(destPath, dep.Subdir, parser.ProjectFileName)
 	if _, err := os.Stat(projectYamlPath); err == nil {
 		isAloy = true
 	}
@@ -89,7 +101,9 @@ func resolveSingle(dep model.Dependency, modulesBase string) (*ResolvedDep, erro
 		GitURL:          dep.Git,
 		ResolvedVersion: resolvedVersion,
 		CommitSHA:       sha,
-		ModuleDir:       dirName,
+		LogicalName:     logicalName,
+		RepoDir:         repoDir,
+		Subdir:          dep.Subdir,
 		CMakeTarget:     cmakeTarget,
 		IsAloyPackage:   isAloy,
 		IsSystem:        false,
@@ -97,14 +111,12 @@ func resolveSingle(dep model.Dependency, modulesBase string) (*ResolvedDep, erro
 }
 
 // ResolveGraph performs BFS dependency resolution starting from the root project.
-// Dependencies at the same BFS level are cloned in parallel.
 func ResolveGraph(projectRoot string, cfg *model.ProjectConfig) ([]ResolvedDep, error) {
 	modulesBase := filepath.Join(projectRoot, ModulesDir)
 	if err := os.MkdirAll(modulesBase, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create %s: %w", modulesBase, err)
 	}
 
-	// Collect all dependencies from all targets
 	type queueItem struct {
 		dep     model.Dependency
 		fromPkg string
@@ -116,31 +128,31 @@ func ResolveGraph(projectRoot string, cfg *model.ProjectConfig) ([]ResolvedDep, 
 		}
 	}
 
-	// Track resolved packages to detect duplicates
 	resolved := make(map[string]*ResolvedDep)
 
-	// BFS level-by-level: each level is processed in parallel
 	for len(queue) > 0 {
 		currentLevel := queue
 		queue = nil
 
-		// 1. Filter: handle system deps and duplicates synchronously, collect git deps to fetch
 		type fetchJob struct {
-			item    queueItem
-			dirName string
+			item        queueItem
+			logicalName string
 		}
 		var toFetch []fetchJob
-		seen := make(map[string]bool) // dedup within same level
+		seen := make(map[string]bool)
+
+		uniqueGitURLs := make(map[string]bool)
 
 		for _, item := range currentLevel {
 			dep := item.dep
-			dirName := dep.ModuleDir()
+			logicalName := dep.ModuleDir()
 
 			if dep.Type == "system" {
-				if _, exists := resolved[dirName]; !exists {
-					resolved[dirName] = &ResolvedDep{
-						Name:     dep.Name,
-						IsSystem: true,
+				if _, exists := resolved[logicalName]; !exists {
+					resolved[logicalName] = &ResolvedDep{
+						Name:        dep.Name,
+						LogicalName: logicalName,
+						IsSystem:    true,
 					}
 				}
 				continue
@@ -150,7 +162,7 @@ func ResolveGraph(projectRoot string, cfg *model.ProjectConfig) ([]ResolvedDep, 
 				return nil, fmt.Errorf("dependency %q from %s: git URL is required for non-system packages", dep.Name, item.fromPkg)
 			}
 
-			if existing, exists := resolved[dirName]; exists {
+			if existing, exists := resolved[logicalName]; exists {
 				if dep.Version != "" && existing.ResolvedVersion != "" {
 					if IsMajorConflict(dep.Version, existing.ResolvedVersion) {
 						return nil, fmt.Errorf(
@@ -163,18 +175,44 @@ func ResolveGraph(projectRoot string, cfg *model.ProjectConfig) ([]ResolvedDep, 
 				continue
 			}
 
-			if seen[dirName] {
+			if seen[logicalName] {
 				continue
 			}
-			seen[dirName] = true
-			toFetch = append(toFetch, fetchJob{item: item, dirName: dirName})
+			seen[logicalName] = true
+
+			uniqueGitURLs[dep.Git] = true
+			toFetch = append(toFetch, fetchJob{item: item, logicalName: logicalName})
 		}
 
 		if len(toFetch) == 0 {
 			continue
 		}
 
-		// 2. Clone & resolve in parallel
+		// 1. Fetch caches concurrently
+		type cacheResult struct {
+			url       string
+			cachePath string
+			err       error
+		}
+		cacheResults := make(chan cacheResult, len(uniqueGitURLs))
+
+		for url := range uniqueGitURLs {
+			go func(u string) {
+				cp, err := git.FetchCache(u)
+				cacheResults <- cacheResult{u, cp, err}
+			}(url)
+		}
+
+		cachePaths := make(map[string]string)
+		for i := 0; i < len(uniqueGitURLs); i++ {
+			res := <-cacheResults
+			if res.err != nil {
+				return nil, res.err
+			}
+			cachePaths[res.url] = res.cachePath
+		}
+
+		// 2. Resolve uniquely and parallel
 		type fetchResult struct {
 			rd  *ResolvedDep
 			dep model.Dependency
@@ -187,21 +225,22 @@ func ResolveGraph(projectRoot string, cfg *model.ProjectConfig) ([]ResolvedDep, 
 		for i, job := range toFetch {
 			go func(idx int, j fetchJob) {
 				defer wg.Done()
-				rd, err := resolveSingle(j.item.dep, modulesBase)
+				cp := cachePaths[j.item.dep.Git]
+				rd, err := resolveSingle(j.item.dep, modulesBase, cp)
 				results[idx] = fetchResult{rd: rd, dep: j.item.dep, err: err}
 			}(i, job)
 		}
 		wg.Wait()
 
-		// 3. Collect results and enqueue sub-dependencies
+		// 3. Collect results
 		for _, r := range results {
 			if r.err != nil {
 				return nil, r.err
 			}
-			resolved[r.rd.ModuleDir] = r.rd
+			resolved[r.rd.LogicalName] = r.rd
 
 			if r.rd.IsAloyPackage {
-				destPath := filepath.Join(modulesBase, r.rd.ModuleDir)
+				destPath := filepath.Join(modulesBase, r.rd.RepoDir, r.rd.Subdir)
 				subCfg, err := parser.LoadProject(destPath)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse %s/project.yaml: %w", r.dep.Name, err)
@@ -215,7 +254,6 @@ func ResolveGraph(projectRoot string, cfg *model.ProjectConfig) ([]ResolvedDep, 
 		}
 	}
 
-	// Convert map to slice, sorted by name for deterministic output
 	var result []ResolvedDep
 	for _, rd := range resolved {
 		result = append(result, *rd)
@@ -232,6 +270,9 @@ func BuildLockFile(deps []ResolvedDep) *model.LockFile {
 	for _, d := range deps {
 		lf.Packages = append(lf.Packages, model.LockedPackage{
 			Name:            d.Name,
+			LogicalName:     d.LogicalName,
+			RepoDir:         d.RepoDir,
+			Subdir:          d.Subdir,
 			GitURL:          d.GitURL,
 			ResolvedVersion: d.ResolvedVersion,
 			CommitSHA:       d.CommitSHA,

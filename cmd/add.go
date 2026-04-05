@@ -18,6 +18,7 @@ var (
 	addCMakeOpts   []string
 	addTarget      string
 	addCMakeTarget string
+	addSubdir      string
 )
 
 var addCmd = &cobra.Command{
@@ -43,6 +44,7 @@ var addCmd = &cobra.Command{
 			Name:    name,
 			Version: addVersion,
 			Alias:   addAlias,
+			Subdir:  addSubdir,
 		}
 
 		if addSystem {
@@ -121,6 +123,7 @@ func init() {
 	addCmd.Flags().StringArrayVar(&addCMakeOpts, "cmake-option", nil, "CMake option in key=value format")
 	addCmd.Flags().StringVar(&addCMakeTarget, "cmake-target", "", "CMake target name for linking (if different from package name)")
 	addCmd.Flags().StringVarP(&addTarget, "target", "t", "", "Target to add the dependency to (default: first target)")
+	addCmd.Flags().StringVarP(&addSubdir, "subdir", "s", "", "Subdirectory path within the repository")
 	rootCmd.AddCommand(addCmd)
 }
 

@@ -45,7 +45,7 @@ func Init(dir string, targetType string) error {
 		Targets: map[string]model.Target{
 			projectName: target,
 			projectName + "_test": {
-				Type: "test",
+				Type:    "test",
 				Sources: []string{"tests/**/*.cpp"},
 			},
 		},

@@ -112,6 +112,12 @@ targets:
         git: "https://github.com/nlohmann/json.git"
         cmake_target: nlohmann_json    # When CMake target name differs from package name
 
+      # Monorepo support via subdir
+      - name: core_utils
+        git: "https://github.com/company/monorepo.git"
+        subdir: libs/core_utils
+        version: "^1.0.0"
+
 inject_cmake: "cmake/extra_logic.cmake"
 ```
 
@@ -124,6 +130,7 @@ inject_cmake: "cmake/extra_logic.cmake"
 | `version` | No | SemVer constraint (`^1.2.0`, `~1.0`, `>=1.0.0 <2.0.0`) |
 | `type` | No | Set to `"system"` to use `find_package()` |
 | `alias` | No | Alias — used as the directory name and reference name |
+| `subdir` | No | Subdirectory path for monorepo packages (e.g. `libs/foo`) |
 | `cmake_target` | No | CMake target name for linking (when it differs from the package name) |
 | `cmake_options` | No | `key: value` map — injected as `set(KEY VAL CACHE ... FORCE)` |
 
@@ -144,7 +151,7 @@ inject_cmake: "cmake/extra_logic.cmake"
 | `aloy run` | Build and run an executable target |
 | `aloy test` | Build and run testing targets (`type: test`) via CTest |
 | `aloy tree` | Show the resolved dependency hierarchy tree |
-| `aloy clean` | Remove `build/` (`--all` also removes `.my_modules/` + `CMakeLists.txt`) |
+| `aloy clean` | Remove `build/` (`--all` removes `.my_modules/`, `--cache` clears `~/.aloy/cache`) |
 | `aloy download` | Clone sources from `aloy.lock` only (for CI) |
 | `aloy update` | Update to latest versions within SemVer range (`--dry-run` supported) |
 
@@ -166,7 +173,8 @@ aloy add <git_url> -a myalias                  # Set alias
 aloy add <name> --system                        # System package (find_package)
 aloy add <git_url> --cmake-option KEY=VAL       # CMake option (repeatable)
 aloy add <git_url> --cmake-target target_name   # CMake target name override
-aloy add <git_url> -t mytarget                 # Add to a specific target
+aloy add <git_url> --subdir path/to/pkg         # Monorepo subdirectory
+aloy add <git_url> -t mytarget                  # Add to a specific target
 ```
 
 ### build Options
@@ -182,6 +190,7 @@ aloy build -j 8               # Parallel build
 ```bash
 aloy clean                    # Remove build/ only
 aloy clean --all              # Remove build/ + .my_modules/ + CMakeLists.txt
+aloy clean --cache            # Clear global git cache in ~/.aloy/cache
 ```
 
 ### update Options
@@ -196,12 +205,14 @@ aloy update --dry-run         # Show what would change without applying
 aloy resolves dependencies using **BFS (breadth-first search)**:
 
 1. All dependencies from every target are queued and processed in order
-2. For each dependency, SemVer-compatible versions are discovered from Git tags (`v1.2.0` → `1.2.0`)
-3. SemVer ranges are supported: `^1.2.0`, `~1.2.0`, `>=1.0.0 <2.0.0`, etc.
-4. When the same package is required multiple times, the **first resolved version is kept** (first-come-first-served)
-5. However, if **major versions conflict**, an error is raised with a hint to use `alias`
-6. Repositories without matching tags fall back to the default branch (`main` → `master`)
-7. If a dependency is an aloy package (has `project.yaml`), its sub-dependencies are resolved recursively
+2. Dependencies are cloned centrally into a **Global Git Cache** (`~/.aloy/cache`) via bare clone to eliminate duplicate network IO
+3. For each dependency, SemVer-compatible versions are discovered from Git tags (`v1.2.0` → `1.2.0`)
+4. SemVer ranges are supported: `^1.2.0`, `~1.2.0`, `>=1.0.0 <2.0.0`, etc.
+5. `aloy` then rapidly creates a hardlinked copy (`--reference`) in `.my_modules/<repo-hash-version>/`
+6. When the same package is required multiple times, the **first resolved version is kept** (first-come-first-served)
+7. If **major versions conflict**, an error is raised with a hint to use `alias`
+8. Repositories without matching tags fall back to the default branch (`main` → `master`)
+9. If a dependency is an aloy package (has `project.yaml`), its sub-dependencies are resolved recursively
 
 ### Transitive Dependencies and `cmake_target`
 
