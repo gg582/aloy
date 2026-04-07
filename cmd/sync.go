@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/snowmerak/aloy/internal/cmake"
+	"github.com/snowmerak/aloy/internal/makefile"
 	"github.com/snowmerak/aloy/internal/parser"
 	"github.com/snowmerak/aloy/internal/resolver"
 	"github.com/spf13/cobra"
@@ -41,6 +42,11 @@ func runSync(dir string) error {
 		return fmt.Errorf("invalid project.yaml: %w", err)
 	}
 
+	buildSystem := cfg.BuildSystem
+	if buildSystem == "" {
+		buildSystem = "cmake"
+	}
+
 	// 2. Resolve dependency graph
 	fmt.Println("Resolving dependencies...")
 	resolvedDeps, err := resolver.ResolveGraph(dir, cfg)
@@ -55,32 +61,50 @@ func runSync(dir string) error {
 		return fmt.Errorf("failed to save lock file: %w", err)
 	}
 
-	// 4. Generate CMakeLists.txt for aloy sub-packages
+	// 4. Generate build files for aloy sub-packages
 	for _, dep := range resolvedDeps {
 		if dep.IsSystem || !dep.IsAloyPackage {
 			continue
 		}
 		modulePath := filepath.Join(dir, resolver.ModulesDir, dep.ModuleDir)
-		fmt.Printf("  Generating CMake for %s...\n", dep.Name)
-		if err := cmake.GenerateForModule(modulePath); err != nil {
-			return fmt.Errorf("failed to generate CMake for %s: %w", dep.Name, err)
+		switch buildSystem {
+		case "makefile":
+			fmt.Printf("  Generating Makefile for %s...\n", dep.Name)
+			if err := makefile.GenerateForModule(modulePath); err != nil {
+				return fmt.Errorf("failed to generate Makefile for %s: %w", dep.Name, err)
+			}
+		default:
+			fmt.Printf("  Generating CMake for %s...\n", dep.Name)
+			if err := cmake.GenerateForModule(modulePath); err != nil {
+				return fmt.Errorf("failed to generate CMake for %s: %w", dep.Name, err)
+			}
 		}
 	}
 
-	// 5. Generate master CMakeLists.txt
-	fmt.Println("Generating root CMakeLists.txt...")
-	if err := cmake.GenerateMaster(dir, cfg, resolvedDeps); err != nil {
-		return fmt.Errorf("failed to generate root CMakeLists.txt: %w", err)
+	// 5. Generate master build file
+	switch buildSystem {
+	case "makefile":
+		fmt.Println("Generating root Makefile...")
+		if err := makefile.GenerateMaster(dir, cfg, resolvedDeps); err != nil {
+			return fmt.Errorf("failed to generate root Makefile: %w", err)
+		}
+	default:
+		fmt.Println("Generating root CMakeLists.txt...")
+		if err := cmake.GenerateMaster(dir, cfg, resolvedDeps); err != nil {
+			return fmt.Errorf("failed to generate root CMakeLists.txt: %w", err)
+		}
 	}
 
-	// 6. Run cmake -B build
-	fmt.Println("Configuring build...")
-	cmakeCmd := exec.Command("cmake", "-B", "build", "-S", ".")
-	cmakeCmd.Dir = dir
-	cmakeCmd.Stdout = os.Stdout
-	cmakeCmd.Stderr = os.Stderr
-	if err := cmakeCmd.Run(); err != nil {
-		return fmt.Errorf("cmake configuration failed: %w", err)
+	// 6. Configure if needed
+	if buildSystem == "cmake" {
+		fmt.Println("Configuring build...")
+		cmakeCmd := exec.Command("cmake", "-B", "build", "-S", ".")
+		cmakeCmd.Dir = dir
+		cmakeCmd.Stdout = os.Stdout
+		cmakeCmd.Stderr = os.Stderr
+		if err := cmakeCmd.Run(); err != nil {
+			return fmt.Errorf("cmake configuration failed: %w", err)
+		}
 	}
 
 	fmt.Println("Sync complete!")

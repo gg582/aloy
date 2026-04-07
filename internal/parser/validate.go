@@ -35,5 +35,8 @@ func ValidateProject(cfg *model.ProjectConfig) error {
 			return fmt.Errorf("target %q: sources are required for type %q", name, target.Type)
 		}
 	}
+	if cfg.BuildSystem != "" && cfg.BuildSystem != "cmake" && cfg.BuildSystem != "makefile" {
+		return fmt.Errorf("build_system must be one of: cmake, makefile")
+	}
 	return nil
 }

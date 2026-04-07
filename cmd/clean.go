@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snowmerak/aloy/internal/parser"
 	"github.com/snowmerak/aloy/internal/resolver"
 	"github.com/spf13/cobra"
 )
@@ -26,6 +27,16 @@ var cleanCmd = &cobra.Command{
 			return fmt.Errorf("failed to remove build/: %w", err)
 		}
 		fmt.Println("Removed build/")
+		buildSystem := "cmake"
+		if cfg, err := parser.LoadProject(dir); err == nil && cfg.BuildSystem != "" {
+			buildSystem = cfg.BuildSystem
+		}
+		if buildSystem == "makefile" {
+			makefilePath := filepath.Join(dir, "Makefile")
+			if err := os.Remove(makefilePath); err == nil {
+				fmt.Println("Removed Makefile")
+			}
+		}
 
 		if cleanAll {
 			modulesDir := filepath.Join(dir, resolver.ModulesDir)
@@ -45,6 +56,6 @@ var cleanCmd = &cobra.Command{
 }
 
 func init() {
-	cleanCmd.Flags().BoolVar(&cleanAll, "all", false, "Also remove .my_modules/ and generated CMakeLists.txt")
+	cleanCmd.Flags().BoolVar(&cleanAll, "all", false, "Also remove .my_modules/ and generated CMakeLists.txt/Makefile")
 	rootCmd.AddCommand(cleanCmd)
 }

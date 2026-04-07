@@ -38,6 +38,7 @@ func Init(dir string, targetType string) error {
 			Version:     "0.1.0",
 			CXXStandard: 17,
 		},
+		BuildSystem: "cmake",
 		Targets: map[string]model.Target{
 			projectName: target,
 		},
