@@ -11,6 +11,7 @@ import (
 )
 
 var cleanAll bool
+var cleanCache bool
 
 var cleanCmd = &cobra.Command{
 	Use:   "clean",
@@ -50,6 +51,16 @@ var cleanCmd = &cobra.Command{
 			fmt.Println("Removed CMakeLists.txt")
 		}
 
+		if cleanCache {
+			home, err := os.UserHomeDir()
+			if err == nil {
+				cacheDir := filepath.Join(home, ".aloy", "cache")
+				if err := os.RemoveAll(cacheDir); err == nil {
+					fmt.Println("Removed global cache ~/.aloy/cache/")
+				}
+			}
+		}
+
 		fmt.Println("Clean complete!")
 		return nil
 	},
@@ -57,5 +68,6 @@ var cleanCmd = &cobra.Command{
 
 func init() {
 	cleanCmd.Flags().BoolVar(&cleanAll, "all", false, "Also remove .my_modules/ and generated CMakeLists.txt/Makefile")
+	cleanCmd.Flags().BoolVar(&cleanCache, "cache", false, "Remove the global git cache (~/.aloy/cache/)")
 	rootCmd.AddCommand(cleanCmd)
 }

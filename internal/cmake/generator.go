@@ -70,13 +70,24 @@ func writeHeader(b *strings.Builder, cfg *model.ProjectConfig) {
 		fmt.Fprintf(b, "set(CMAKE_CXX_STANDARD %d)\n", cfg.Project.CXXStandard)
 		b.WriteString("set(CMAKE_CXX_STANDARD_REQUIRED ON)\n\n")
 	}
+
+	hasTest := false
+	for _, target := range cfg.Targets {
+		if target.Type == "test" {
+			hasTest = true
+			break
+		}
+	}
+	if hasTest {
+		b.WriteString("enable_testing()\n\n")
+	}
 }
 
 func writeDependencies(b *strings.Builder, cfg *model.ProjectConfig, resolvedDeps []resolver.ResolvedDep) {
 	// Build a lookup for resolved deps
 	depMap := make(map[string]*resolver.ResolvedDep)
 	for i := range resolvedDeps {
-		depMap[resolvedDeps[i].ModuleDir] = &resolvedDeps[i]
+		depMap[resolvedDeps[i].LogicalName] = &resolvedDeps[i]
 	}
 
 	// Collect all unique dependencies across targets
@@ -104,8 +115,8 @@ func writeDependencies(b *strings.Builder, cfg *model.ProjectConfig, resolvedDep
 		if dep.Type == "system" {
 			continue
 		}
-		dirName := dep.ModuleDir()
-		rd := depMap[dirName]
+		logicalName := dep.ModuleDir()
+		rd := depMap[logicalName]
 		if rd == nil {
 			continue
 		}
@@ -120,7 +131,10 @@ func writeDependencies(b *strings.Builder, cfg *model.ProjectConfig, resolvedDep
 			fmt.Fprintf(b, "set(%s %q CACHE %s \"\" FORCE)\n", k, v, cacheType)
 		}
 
-		fmt.Fprintf(b, "add_subdirectory(%s/%s)\n", resolver.ModulesDir, dirName)
+		sourcePath := filepath.ToSlash(filepath.Join(resolver.ModulesDir, rd.RepoDir, rd.Subdir))
+		binaryPath := filepath.ToSlash(filepath.Join(resolver.ModulesDir, rd.LogicalName))
+		// We use sourcePath and binaryPath to allow multiple subdirectories from the same repo
+		fmt.Fprintf(b, "add_subdirectory(%s %s)\n", sourcePath, binaryPath)
 	}
 
 	if len(allDeps) > 0 {
@@ -149,7 +163,7 @@ func writeTargets(b *strings.Builder, cfg *model.ProjectConfig, projectRoot stri
 func writeTargetBlock(b *strings.Builder, cmakeName string, target *model.Target, sources []string, projectRoot string) error {
 	// Add target
 	switch target.Type {
-	case "executable":
+	case "executable", "test":
 		fmt.Fprintf(b, "add_executable(%s)\n", cmakeName)
 	case "library":
 		fmt.Fprintf(b, "add_library(%s STATIC)\n", cmakeName)
@@ -248,6 +262,19 @@ func writeTargetBlock(b *strings.Builder, cmakeName string, target *model.Target
 
 		b.WriteString("endif()\n")
 	}
+
+	if target.Pch != "" {
+		keyword := "PRIVATE"
+		if target.Type == "header_only" {
+			keyword = "INTERFACE"
+		}
+		fmt.Fprintf(b, "    target_precompile_headers(%s %s %s)\n", cmakeName, keyword, target.Pch)
+	}
+
+	if target.Type == "test" {
+		fmt.Fprintf(b, "    add_test(NAME %s COMMAND %s)\n", cmakeName, cmakeName)
+	}
+
 	return nil
 }
 

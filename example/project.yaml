@@ -21,3 +21,11 @@ targets:
             - name: testlib
               git: C:/Users/snowm/Projects/snowmerak/aloy/testlib
               version: ^1.0.0
+    mytest:
+        type: test
+        sources:
+            - tests/test.cpp
+        dependencies:
+            - name: fmt
+              git: https://github.com/fmtlib/fmt
+              version: '>=9.0.0'
